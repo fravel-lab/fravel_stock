@@ -3,7 +3,7 @@ __main__ = "__main__"
 from multiprocessing import Queue
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtCore import QSettings
-from constants.stock_settings import (FRAVEL_TRADER_SETTING_PATH, BASE_DIR, DATA_DIR, DB_DIR, TICK_DIR, SETTINGS_DIR, FAVORITE_PATH, CANDLE_PATH, CODE_TO_STOCK_PATH, STOCK_TO_CODE_PATH, STOCK_PATH)
+from constants.stock_settings import(FRAVEL_TRADER_SETTING_PATH, BASE_DIR, DATA_DIR, DB_DIR, TICK_DIR, SETTINGS_DIR, FAVORITE_PATH, CANDLE_PATH, CODE_TO_STOCK_PATH, STOCK_TO_CODE_PATH, STOCK_PATH)
 
 from ui.fravel_trader_ui import Ui_MainWindow
 import sys
@@ -30,6 +30,12 @@ class MyApp(QMainWindow):
         self.resize(2300, 1500)
         
         self.init_UI()
+    
+    def update_api_info(self):
+        self.settings.setValue("mock_app_key", self.ui.text_mock_app_key.text())
+        self.settings.setValue("mock_secret_key", self.ui.text_mock_secret_key.text())
+        self.settings.setValue("app_key", self.ui.text_app_key.text())
+        self.settings.setValue("secret_key", self.ui.text_secret_key.text())
         
     def init_UI(self):
         set_dark_theme()
@@ -46,7 +52,20 @@ class MyApp(QMainWindow):
                 print("사이보스 로그인 성공")
                 self.ui.label_cybos_status.setText("사이보스 : 로그인")
                 eventQ.put(["cybos_login", True])
-
+                
+        
+        # TODO 2026-01-22 API UI 초기화
+        self.ui.text_mock_app_key.setText(self.settings.value("mock_app_key", ""))
+        self.ui.text_mock_secret_key.setText(self.settings.value("mock_secret_key", ""))
+        self.ui.text_app_key.setText(self.settings.value("app_key", ""))
+        self.ui.text_secret_key.setText(self.settings.value("secret_key", ""))
+        
+        # TODO 2026-01-22 API 정보
+        self.ui.text_mock_app_key.textChanged.connect(self.update_api_info)
+        self.ui.text_mock_secret_key.textChanged.connect(self.update_api_info)
+        self.ui.text_app_key.textChanged.connect(self.update_api_info)
+        self.ui.text_secret_key.textChanged.connect(self.update_api_info)
+        
 
         # 2021-04-01 UI 기본 값 설정
         self.ui.text_path.setText(self.settings.value("path", "c:/_db"))
@@ -202,8 +221,7 @@ class MyApp(QMainWindow):
     
     def delete_candle(self):
         # TODO 2025-02-12 일봉 삭제(기본 7일)
-        reply = QMessageBox.question(self, '확인', f'{self.settings.value("candle_day_range", "7")}일 일봉 데이터를 삭제하시겠습니까?',
-                                   QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        reply = QMessageBox.question(self, '확인', f'{self.settings.value("candle_day_range", "7")}일 일봉 데이터를 삭제하시겠습니까?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.No:
             return
         else :

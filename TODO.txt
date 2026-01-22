@@ -1,3 +1,16 @@
 - 틱데이터 차트로 변경 - time bar, tick bar, volume bar, dollar bar
 - 기준선 저항선을 잘 지키는 종목(기준선, 저항선을 모든날짜마다 그려보기)
 - 미장이 오를때 오르고 내릴때 내리는 주식
+
+
+설치한 콘다 환경 리스트
+conda env list
+
+
+현재 콘다 설정 활성화
+conda activate py311
+
+현재 실행중인 환경으로 설치
+python -m pip install pyqt5
+
+conda install -c conda-forge qt-main

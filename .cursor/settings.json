@@ -1,0 +1,5 @@
+{
+	"python.defaultInterpreterPath": "/Users/jehochu/.conda/envs/py311/bin/python",
+	"python.languageServer": "Pylance",
+	"python.analysis.typeCheckingMode": "basic"
+}
