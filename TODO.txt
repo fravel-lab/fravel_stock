@@ -11,6 +11,7 @@ conda env list
 conda activate py311
 
 현재 실행중인 환경으로 설치
-python -m pip install pyqt5
+python -m pip install pyqt5 psutil pyqtgraph
+python -m pip install pylance
 
 conda install -c conda-forge qt-main

@@ -1,16 +1,20 @@
 __main__ = "__main__"
 
-from multiprocessing import Queue
-from PyQt5.QtWidgets import QApplication, QMainWindow
-from PyQt5.QtCore import QSettings
-from constants.stock_settings import(FRAVEL_TRADER_SETTING_PATH, BASE_DIR, DATA_DIR, DB_DIR, TICK_DIR, SETTINGS_DIR, FAVORITE_PATH, CANDLE_PATH, CODE_TO_STOCK_PATH, STOCK_TO_CODE_PATH, STOCK_PATH)
-
-from ui.fravel_trader_ui import Ui_MainWindow
 import sys
-from PyQt5.QtCore import QDate
-from util.FravelUtils import set_dark_theme
+from multiprocessing import Queue
 
+from PyQt5.QtCore import QDate, QSettings
 from PyQt5.QtGui import QIntValidator
+from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow
+
+from constants.stock_settings import (BASE_DIR, CANDLE_PATH,
+                                      CODE_TO_STOCK_PATH, DATA_DIR, DB_DIR,
+                                      FAVORITE_PATH,
+                                      FRAVEL_TRADER_SETTING_PATH, SETTINGS_DIR,
+                                      STOCK_PATH, STOCK_TO_CODE_PATH, TICK_DIR)
+from ui.fravel_trader_ui import Ui_MainWindow
+from util.FravelUtils import set_dark_theme, set_light_theme
+
 
 class MyApp(QMainWindow):
     def __init__(self):
@@ -39,6 +43,7 @@ class MyApp(QMainWindow):
         
     def init_UI(self):
         set_dark_theme()
+        # set_light_theme()
         
         # TODO 2025-02-04 사이보스 상태 설정
         if sys.platform == 'win32':

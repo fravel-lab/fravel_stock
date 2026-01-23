@@ -1,13 +1,14 @@
+__author__ = 'spitz-pc'
+
 from math import trunc
 from os import mkdir
 from os.path import isdir
 
 import psutil
 import pyqtgraph as pg
-from PyQt5.QtGui import QPalette, QColor, QBrush
+from PyQt5.QtGui import QBrush, QColor, QPalette
 from PyQt5.QtWidgets import qApp
 
-__author__ = 'spitz-pc'
 
 WHITE = QColor(255, 255, 255)
 BLACK = QColor(0, 0, 0)
@@ -33,6 +34,23 @@ def css_rgb(color, a=False):
     """Get a CSS `rgb` or `rgba` string from a `QtGui.QColor`."""
     return ("rgba({}, {}, {}, {})" if a else "rgb({}, {}, {})").format(*color.getRgb())
 
+def set_light_theme():
+    qApp.setStyle("Fusion")
+    light_palette = QPalette()
+    light_palette.setColor(QPalette.Window, WHITE)
+    light_palette.setColor(QPalette.WindowText, BLACK)
+    light_palette.setColor(QPalette.Base, WHITE)
+    light_palette.setColor(QPalette.AlternateBase, PRIMARY)
+    light_palette.setColor(QPalette.ToolTipBase, BLACK)
+    light_palette.setColor(QPalette.ToolTipText, BLACK)
+    light_palette.setColor(QPalette.Text, BLACK)
+    light_palette.setColor(QPalette.Button, WHITE)
+    light_palette.setColor(QPalette.ButtonText, BLACK)
+    light_palette.setColor(QPalette.BrightText, RED)
+    light_palette.setColor(QPalette.Link, TERTIARY)
+    light_palette.setColor(QPalette.Highlight, TERTIARY)
+    light_palette.setColor(QPalette.HighlightedText, WHITE)
+    qApp.setPalette(light_palette)
 
 def set_dark_theme():
     qApp.setStyle("Fusion")
