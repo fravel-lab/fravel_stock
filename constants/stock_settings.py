@@ -11,7 +11,7 @@ TICK_DIR = os.path.join(DATA_DIR, 'tick')
 SETTINGS_DIR = os.path.join(BASE_DIR, 'config')
 
 # TODO 2024-11-12 파일 경로
-FRAVEL_TRADER_SETTING_PATH = os.path.join(SETTINGS_DIR, 'fravel_trader_setting.ini')  # 틱 다운로더 설정
+FRAVEL_TRADER_SETTING_PATH = os.path.join(SETTINGS_DIR, 'trader_setting.ini')  # 틱 다운로더 설정
 STOCK_PATH = os.path.join(DB_DIR, 'stock.db')  # 주식 종목 정보
 STOCK_WATCH_PATH = os.path.join(DB_DIR, 'stock_watch.db')  # 관심종목 종목 정보
 FAVORITE_PATH = os.path.join(DB_DIR, 'favorite.db')  # 관심종목 종목 정보
@@ -20,18 +20,17 @@ CODE_TO_STOCK_PATH = os.path.join(DATA_DIR, 'code_to_stock.pickle')  # 종목 �
 STOCK_TO_CODE_PATH = os.path.join(DATA_DIR, 'stock_to_code.pickle')  # 주식 이름을 종목 코드로 변환
 
 # TODO 2024-11-21 
-UI_LIST = {
+Q_LIST = {
     "로그텍스트": 0,
     "로그텍스트2": 1,
     "로그텍스트3": 2,
     "로그텍스트4": 3,
     "로그텍스트5": 4,
-    "계좌목록": 5,
-    "잔고평가": 6,
-    "주식평가": 7,
-    "주식평가_종목별": 8,
-    "즐겨찾기": 9,
-    "캔들일자": 10,
+    "계좌정보": 5,
+    "주식평가": 6,
+    "주식평가_종목별": 7,
+    "즐겨찾기": 8,
+    "캔들일자": 9,
     "조건식": 11,
     "조건식 종목": 12,
     "틱데이터": 13,
@@ -42,6 +41,13 @@ UI_LIST = {
     "1차 관심종목 제거": 18,
     "일자별 주가": 19,
     "틱데이터-1분": 20,
+    "API_TOKEN": 21,
+    "MOCK_API_TOKEN": 22,
+}
+
+API_ID = {
+    "계좌정보": "ka01690",
+    "종목정보": "ka10099",
 }
 
 # TODO 2024-11-21 생략할 계좌 번호

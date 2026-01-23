@@ -1,19 +1,26 @@
 __main__ = "__main__"
 
+import os
+import pickle
+from pprint import pprint
 import sys
-from multiprocessing import Queue
+from multiprocessing import Process, Queue
+import time
+from typing import Any
 
-from PyQt5.QtCore import QDate, QSettings
-from PyQt5.QtGui import QIntValidator
-from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow
+from PyQt5.QtCore import QDate, QSettings, QThread, Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor, QIntValidator
+from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QTableWidgetItem
 
 from constants.stock_settings import (BASE_DIR, CANDLE_PATH,
                                       CODE_TO_STOCK_PATH, DATA_DIR, DB_DIR,
                                       FAVORITE_PATH,
-                                      FRAVEL_TRADER_SETTING_PATH, SETTINGS_DIR,
+                                      FRAVEL_TRADER_SETTING_PATH, Q_LIST, SETTINGS_DIR,
                                       STOCK_PATH, STOCK_TO_CODE_PATH, TICK_DIR)
+from core.KiwoomWorker import KiwoomWorker
 from ui.fravel_trader_ui import Ui_MainWindow
-from util.FravelUtils import set_dark_theme, set_light_theme
+from util.FravelUtils import set_dark_theme, set_item_color, set_light_theme
+from core.TelegramWorker import TelegramWorker
 
 
 class MyApp(QMainWindow):
@@ -34,30 +41,79 @@ class MyApp(QMainWindow):
         self.resize(2300, 1500)
         
         self.init_UI()
+        
+        # TODO 2026-01-23 pickle데이터 로드
+        try:
+            with open(CODE_TO_STOCK_PATH, "rb") as f:
+                self.code_to_stock = pickle.load(f)
+            with open(STOCK_TO_CODE_PATH, "rb") as f:
+                self.stock_to_code = pickle.load(f)
+            self.ui.text_ouput.append("pickle데이터 로드 완료")
+        except Exception as e:
+            print("pickle데이터 로드 실패")
+            self.code_to_stock = {}
+            self.stock_to_code = {}
+            self.ui.text_ouput.append(f"pickle데이터 로드 실패 - {e}")
+        
+        self.writer = Writer()
+        self.writer.signal_log.connect(self.update_output)
+        self.writer.signal_table.connect(self.update_table)
+        self.writer.signal_text.connect(self.update_text)
+        self.writer.start()
     
+    def update_output(self, text, index):
+        if index == 1: # 메인 로그창
+            self.ui.text_ouput.append(text)
+        elif index == 2: # 종목관리 로그창
+            self.ui.text_output_2.append(text)
+    
+    @pyqtSlot(list)
+    def update_table(self, data):
+        if data[0] == Q_LIST["계좌정보"]:
+            pprint(data[1])
+            table = self.ui.table_balance
+            table.setRowCount(1)
+            # 총 매입 | 평가금액 | 손익금액 | 수익률 | 예수금 | 예탁자산
+            for col in range(6):
+                if col == 0: # 총 매입
+                    item = QTableWidgetItem(f"{int(data[1]['tot_buy_amt']):,.0f}")
+                elif col == 1: # 평가금액
+                    item = QTableWidgetItem(f"{int(data[1]['tot_evlt_amt']):,.0f}")
+                elif col == 2: # 손익금액
+                    item = QTableWidgetItem(f"{int(data[1]['tot_evltv_prft']):,.0f}")
+                    set_item_color(item, data[1]['tot_evltv_prft'])
+                elif col == 3: # 수익률
+                    item = QTableWidgetItem(f"{data[1]['tot_prft_rt']}%")
+                    set_item_color(item, data[1]['tot_prft_rt'])
+                elif col == 4: # 예수금
+                    item = QTableWidgetItem(f"{int(data[1]['dbst_bal']):,.0f}")
+                else: # 예탁자산
+                    item = QTableWidgetItem(f"{int(data[1]['day_stk_asst']):,.0f}")
+                    
+                item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                table.setItem(0, col, item)
+    
+    def update_text(self, data):
+        self.ui.text_output.append(data)
+        
     def update_api_info(self):
         self.settings.setValue("mock_app_key", self.ui.text_mock_app_key.text())
         self.settings.setValue("mock_secret_key", self.ui.text_mock_secret_key.text())
         self.settings.setValue("app_key", self.ui.text_app_key.text())
         self.settings.setValue("secret_key", self.ui.text_secret_key.text())
-        
+    
+    def reload_token(self):
+        # TODO 2026-01-22 실전, 모의투자 Key가 있으면 토큰 요청
+        if self.ui.text_app_key.text() != "" and self.ui.text_secret_key.text() != "":
+            self.ui.text_ouput.append("토큰 요청 - 요청")
+            teleQ.put("키움 REST API 토큰 요청")
+            eventQ.put(["reload_token"])
+        else:
+            self.ui.text_ouput.append("토큰 요청 실패 - 실전, 모의투자 Key가 없습니다.")
+    
     def init_UI(self):
         set_dark_theme()
         # set_light_theme()
-        
-        # TODO 2025-02-04 사이보스 상태 설정
-        if sys.platform == 'win32':
-            self.cybos = win32com.client.Dispatch("CpUtil.CpCybos")
-            value = self.cybos.IsConnect
-            if value == 0:
-                print("사이보스 로그인 실패")
-                self.ui.label_cybos_status.setText("사이보스 : 로그아웃")
-                eventQ.put(["cybos_login", False])
-            else:
-                print("사이보스 로그인 성공")
-                self.ui.label_cybos_status.setText("사이보스 : 로그인")
-                eventQ.put(["cybos_login", True])
-                
         
         # TODO 2026-01-22 API UI 초기화
         self.ui.text_mock_app_key.setText(self.settings.value("mock_app_key", ""))
@@ -71,7 +127,19 @@ class MyApp(QMainWindow):
         self.ui.text_app_key.textChanged.connect(self.update_api_info)
         self.ui.text_secret_key.textChanged.connect(self.update_api_info)
         
+        # TODO 2026-01-22 실전, 모의투자 Key가 있으면 토큰 요청
+        self.reload_token()
+        
+        # TODO 2026-01-22 실전, 모의투자 로드
+        if self.settings.value("trading_type", "mock") == "mock":
+            self.ui.radio_mock_trading.setChecked(True)
+        else:
+            self.ui.radio_real_trading.setChecked(True)
 
+        self.ui.radio_mock_trading.clicked.connect(lambda: self.settings.setValue("trading_type", "mock"))
+        self.ui.radio_real_trading.clicked.connect(lambda: self.settings.setValue("trading_type", "real"))
+        self.ui.btn_account_info.clicked.connect(lambda: self.get_account_info()) # 계좌 정보 조회
+        
         # 2021-04-01 UI 기본 값 설정
         self.ui.text_path.setText(self.settings.value("path", "c:/_db"))
         self.ui.btn_delete_candle.clicked.connect(self.delete_candle)
@@ -87,13 +155,16 @@ class MyApp(QMainWindow):
         self.ui.btn_path_open.clicked.connect(self.path_open)
         self.ui.btn_reset.clicked.connect(self.reset_output)
         self.ui.btn_ohlcv.clicked.connect(self.load_ohlcv)
-        self.ui.btn_login.clicked.connect(self.login_kiwoom)  # 2024-08-29 로그인 버튼
+        #self.ui.btn_login.clicked.connect(self.login_kiwoom)  # 2024-08-29 로그인 버튼
         self.ui.btn_load_condition.clicked.connect(self.load_condition)
         self.ui.list_condition.itemClicked.connect(self.load_condition_detail)
         
-        self.ui.table_balance.setColumnWidth(2, 80) # 손익금액
+        # self.ui.table_balance.setColumnWidth(2, 80) # 손익금액
+        self.ui.table_balance.setColumnWidth(0, 85) # 수익률
+        self.ui.table_balance.setColumnWidth(1, 85) # 수익률
+        self.ui.table_balance.setColumnWidth(2, 85) # 수익률
         self.ui.table_balance.setColumnWidth(3, 70) # 수익률
-
+        
         # 기본 전체종목 테이블
         self.ui.table_stock_list.setColumnWidth(0, 180)
         self.ui.table_stock_list.setColumnWidth(1, 80)
@@ -147,8 +218,6 @@ class MyApp(QMainWindow):
         self.ui.text_candle_db_path.setText("./data/db/candle.db")
         self.ui.text_candle_db_path.setReadOnly(True) # 읽기 전용
 
-        # TODO 2024-11-13 계좌 콤보박스 초기화
-        self.ui.combo_account.currentIndexChanged.connect(self.account_changed)
 
         # TODO 2024-08-29 탭 사이드 텍스트(탭 우측 사이드에 텍스트 출력해줌)
         # tmpLabel = QLabel(f"최종 업데이트 : {self.candle_latest_date}")
@@ -223,6 +292,11 @@ class MyApp(QMainWindow):
         # TODO 2025-02-25 일자별 주가 클릭 이벤트 설정(틱정보 바차트 생성용)
         self.ui.table_stock_ohlcv.itemClicked.connect(self.stock_ohlcv_item_clicked)
         self.ui.table_stock_ohlcv.itemSelectionChanged.connect(self.stock_ohlcv_item_clicked)
+        
+        
+    def get_account_info(self):
+        # TODO 2026-01-23 계좌 정보 조회
+        eventQ.put(["account_info"])
     
     def delete_candle(self):
         # TODO 2025-02-12 일봉 삭제(기본 7일)
@@ -256,8 +330,8 @@ class MyApp(QMainWindow):
         # 2022-11-29 코스피, 코스닥 데이터 갱신
         # windowQ.put("마켓 데이터 - 요청")
         # QMessageBox.warning(self, "알림", "get_market_data 메서드 주석 해제 필요!")
-        self.ui.text_ouput.append("마켓 데이터 - 요청")
-        eventQ.put(["market_data"])
+        self.ui.text_output_2.append("마켓 데이터 - 요청")
+        eventQ.put(["market_data"],)
     
     def set_path(self):
         tmp_dir = self.settings.value("path", "C:/_db")
@@ -290,25 +364,18 @@ class MyApp(QMainWindow):
         # 000 : 항목명
         eventQ.put(["condition_detail", self.ui.list_condition.currentItem().text()])
     
-    def account_changed(self, index):
-        # account 클래스 변수에 계좌번호 업데이트
-        self.account = self.ui.combo_account.currentText()
-        print(f"계좌 변경 : {self.ui.combo_account.currentText()}")
+    # def account_changed(self, index):
+    #     # account 클래스 변수에 계좌번호 업데이트
+    #     self.account = self.ui.combo_account.currentText()
+    #     print(f"계좌 변경 : {self.ui.combo_account.currentText()}")
 
-        # TODO 2024-11-18 계좌 잔고, 예수금, 보유종목 요청
-        eventQ.put(["account_info", self.account])
+    #     # TODO 2024-11-18 계좌 잔고, 예수금, 보유종목 요청
+    #     eventQ.put(["account_info", self.account])
 
-        # windowQ.put(f"계좌 [{self.account}] 상세정보 - 요청")
-        self.ui.text_ouput.append(f"계좌 [{self.account}] 상세정보 - 요청")
-        print(f"계좌 [{self.account}] 상세정보 - 요청")
-        
-    def login_kiwoom(self):
-        # TODO 2024-11-13 로그인 유무 구분
-        if self.ui.btn_login.text() != "로그인 완료":
-            # eventQ.put(["login", ""])
-            self.ui.text_ouput.append("로그인 - 요청")
-        else:
-            self.ui.text_ouput.append("이미 로그인 상태입니다.")
+    #     # windowQ.put(f"계좌 [{self.account}] 상세정보 - 요청")
+    #     self.ui.text_ouput.append(f"계좌 [{self.account}] 상세정보 - 요청")
+    #     print(f"계좌 [{self.account}] 상세정보 - 요청")
+
         
     def load_ohlcv(self):
         # eventQ.put(["ohlcv", ""])
@@ -367,9 +434,42 @@ class MyApp(QMainWindow):
         # print(f"선택된 날짜 : {selected_date}")
         eventQ.put(["load_tick", self.current_stock_name, selected_stock_code, selected_date.replace('-', ''), open_value])
 
+class Writer(QThread):
+    signal_log = pyqtSignal(str, int)
+    signal_table = pyqtSignal(list)
+    signal_text = pyqtSignal(list)
+    settings = QSettings(FRAVEL_TRADER_SETTING_PATH, QSettings.IniFormat)
+    
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        while True:
+            data = windowQ.get()
+            if data[0] == Q_LIST["로그텍스트"]:
+                # 메인창
+                self.signal_log.emit(data[1], 1)
+            elif data[0] == Q_LIST["로그텍스트2"]:
+                self.signal_log.emit(data[1], 2)
+            elif data[0] == Q_LIST["API_TOKEN"]:
+                print(f"API_TOKEN 수신: {data[1]}")
+                self.settings.setValue("api_token", data[1])
+            elif data[0] == Q_LIST["MOCK_API_TOKEN"]:
+                print(f"MOCK_API_TOKEN 수신: {data[1]}")
+                self.settings.setValue("mock_api_token", data[1])
+            elif data[0] == Q_LIST["계좌정보"]:
+                self.signal_table.emit(data)
+            time.sleep(0.0001)
+
 if __name__ == "__main__":
     eventQ, windowQ, settingsQ, dataQ, teleQ = Queue(), Queue(), Queue(), Queue(), Queue()
     qlist = [eventQ, windowQ, settingsQ, dataQ, teleQ]
+    
+    kiwoom_proc = Process(target=KiwoomWorker, args=(qlist,), daemon=True)
+    kiwoom_proc.start()
+    
+    telegram_proc = Process(target=TelegramWorker, args=(qlist,), daemon=True)
+    telegram_proc.start()
     
     app = QApplication(sys.argv)
 

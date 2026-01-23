@@ -49,126 +49,16 @@
         <item>
          <layout class="QHBoxLayout" name="stock_view_wrapper" stretch="4,8,4">
           <item>
-           <layout class="QVBoxLayout" name="verticalLayout_6" stretch="0,0,0,0,0,0,0,0,0,0,0">
-            <item>
-             <widget class="QGroupBox" name="group_api_info">
-              <property name="title">
-               <string>API 정보</string>
-              </property>
-              <layout class="QHBoxLayout" name="horizontalLayout_39">
-               <item>
-                <layout class="QVBoxLayout" name="verticalLayout_25">
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_42" stretch="2,5">
-                   <item>
-                    <widget class="QLabel" name="label_14">
-                     <property name="text">
-                      <string>모의투자 App Key</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QLineEdit" name="text_mock_app_key">
-                     <property name="minimumSize">
-                      <size>
-                       <width>0</width>
-                       <height>30</height>
-                      </size>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_43" stretch="2,5">
-                   <item>
-                    <widget class="QLabel" name="label_15">
-                     <property name="text">
-                      <string>모의투자 Secret Key</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QLineEdit" name="text_mock_secret_key">
-                     <property name="minimumSize">
-                      <size>
-                       <width>0</width>
-                       <height>30</height>
-                      </size>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_50" stretch="2,5">
-                   <item>
-                    <widget class="QLabel" name="AppKey">
-                     <property name="text">
-                      <string>App Key</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QLineEdit" name="text_app_key">
-                     <property name="minimumSize">
-                      <size>
-                       <width>0</width>
-                       <height>30</height>
-                      </size>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout_54" stretch="2,5">
-                   <item>
-                    <widget class="QLabel" name="label_16">
-                     <property name="text">
-                      <string>Secret Key</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QLineEdit" name="text_secret_key">
-                     <property name="minimumSize">
-                      <size>
-                       <width>0</width>
-                       <height>30</height>
-                      </size>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
-                </layout>
-               </item>
-              </layout>
-             </widget>
-            </item>
-            <item>
-             <spacer name="verticalSpacer_8">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeType">
-               <enum>QSizePolicy::Fixed</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>10</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
+           <layout class="QVBoxLayout" name="verticalLayout_6" stretch="0,0,0,0,0,0,0,0,0">
             <item>
              <widget class="QGroupBox" name="groupBox">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
               <property name="maximumSize">
                <size>
                 <width>16777215</width>
-                <height>125</height>
+                <height>150</height>
                </size>
               </property>
               <property name="title">
@@ -176,48 +66,38 @@
               </property>
               <layout class="QVBoxLayout" name="verticalLayout">
                <item>
-                <layout class="QVBoxLayout" name="accout_vertical" stretch="0,0,0">
+                <layout class="QVBoxLayout" name="accout_vertical" stretch="0,0">
                  <item>
                   <layout class="QHBoxLayout" name="horizontalLayout_21">
                    <item>
-                    <widget class="QLabel" name="label_cybos_status">
-                     <property name="text">
-                      <string>사이보스 : </string>
+                    <spacer name="horizontalSpacer_3">
+                     <property name="orientation">
+                      <enum>Qt::Horizontal</enum>
                      </property>
-                     <property name="alignment">
-                      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
-                 <item>
-                  <layout class="QHBoxLayout" name="horizontalLayout" stretch="3,1,3">
-                   <item>
-                    <widget class="QLabel" name="label">
-                     <property name="text">
-                      <string>계좌번호</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QComboBox" name="combo_account">
-                     <property name="minimumSize">
+                     <property name="sizeHint" stdset="0">
                       <size>
-                       <width>180</width>
-                       <height>30</height>
+                       <width>40</width>
+                       <height>20</height>
                       </size>
                      </property>
-                     <property name="maximumSize">
-                      <size>
-                       <width>16777215</width>
-                       <height>30</height>
-                      </size>
+                    </spacer>
+                   </item>
+                   <item>
+                    <widget class="QRadioButton" name="radio_mock_trading">
+                     <property name="text">
+                      <string>모의투자</string>
                      </property>
                     </widget>
                    </item>
                    <item>
-                    <widget class="QPushButton" name="btn_login">
+                    <widget class="QRadioButton" name="radio_real_trading">
+                     <property name="text">
+                      <string>실전투자</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QPushButton" name="btn_account_info">
                      <property name="minimumSize">
                       <size>
                        <width>0</width>
@@ -225,7 +105,7 @@
                       </size>
                      </property>
                      <property name="text">
-                      <string>키움 로그인</string>
+                      <string>계좌정보 조회</string>
                      </property>
                     </widget>
                    </item>
@@ -249,7 +129,7 @@
                    </column>
                    <column>
                     <property name="text">
-                     <string>평가금액</string>
+                     <string>총평가</string>
                     </property>
                    </column>
                    <column>
@@ -264,7 +144,12 @@
                    </column>
                    <column>
                     <property name="text">
-                     <string>예탁자산</string>
+                     <string>예수금</string>
+                    </property>
+                   </column>
+                   <column>
+                    <property name="text">
+                     <string>총자산</string>
                     </property>
                    </column>
                   </widget>
@@ -1395,6 +1280,119 @@
              <number>20</number>
             </property>
             <item>
+             <widget class="QGroupBox" name="group_api_info">
+              <property name="title">
+               <string>API 정보</string>
+              </property>
+              <layout class="QHBoxLayout" name="horizontalLayout_39">
+               <item>
+                <layout class="QVBoxLayout" name="verticalLayout_25">
+                 <item>
+                  <layout class="QHBoxLayout" name="horizontalLayout_42" stretch="2,5">
+                   <item>
+                    <widget class="QLabel" name="label_14">
+                     <property name="text">
+                      <string>모의투자 App Key</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QLineEdit" name="text_mock_app_key">
+                     <property name="minimumSize">
+                      <size>
+                       <width>0</width>
+                       <height>30</height>
+                      </size>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="horizontalLayout_43" stretch="2,5">
+                   <item>
+                    <widget class="QLabel" name="label_15">
+                     <property name="text">
+                      <string>모의투자 Secret Key</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QLineEdit" name="text_mock_secret_key">
+                     <property name="minimumSize">
+                      <size>
+                       <width>0</width>
+                       <height>30</height>
+                      </size>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="horizontalLayout_50" stretch="2,5">
+                   <item>
+                    <widget class="QLabel" name="AppKey">
+                     <property name="text">
+                      <string>App Key</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QLineEdit" name="text_app_key">
+                     <property name="minimumSize">
+                      <size>
+                       <width>0</width>
+                       <height>30</height>
+                      </size>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                 <item>
+                  <layout class="QHBoxLayout" name="horizontalLayout_54" stretch="2,5">
+                   <item>
+                    <widget class="QLabel" name="label_16">
+                     <property name="text">
+                      <string>Secret Key</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QLineEdit" name="text_secret_key">
+                     <property name="minimumSize">
+                      <size>
+                       <width>0</width>
+                       <height>30</height>
+                      </size>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="verticalSpacer_8">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Fixed</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>10</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
              <widget class="QGroupBox" name="groupBox_10">
               <property name="title">
                <string>DIR/PATH 정보</string>
@@ -1739,6 +1737,22 @@
                </item>
               </layout>
              </widget>
+            </item>
+            <item>
+             <spacer name="verticalSpacer_9">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Fixed</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>10</height>
+               </size>
+              </property>
+             </spacer>
             </item>
             <item>
              <widget class="QGroupBox" name="groupBox_12">
