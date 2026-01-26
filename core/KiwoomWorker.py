@@ -9,8 +9,9 @@ import time
 import requests
 import json
 from time import sleep
-
-from constants.stock_settings import API_ID, CODE_TO_STOCK_PATH, Q_LIST, STOCK_PATH, STOCK_TO_CODE_PATH
+from pprint import pprint
+from constants.stock_settings import API_ID, CANDLE_PATH, CODE_TO_STOCK_PATH, Q_LIST, STOCK_PATH, STOCK_TO_CODE_PATH
+import pandas as pd
 
 app = QtWidgets.QApplication(sys.argv)
 
@@ -36,8 +37,15 @@ class KiwoomWorker:
         self.eventQ = _qlist[0]
         self.windowQ = _qlist[1]
         self.settingsQ = _qlist[2]
-        self.dataQ = _qlist[3]
-        self.teleQ = _qlist[4]
+        self.teleQ = _qlist[3]
+        
+        # TODO 2024-08-18 피클 데이터 초기화
+        if len(self.code_to_stock) == 0:
+            with open(CODE_TO_STOCK_PATH, "rb") as f:
+                self.code_to_stock = pickle.load(f)
+            with open(STOCK_TO_CODE_PATH, "rb") as f:
+                self.stock_to_code = pickle.load(f)
+            print(f'code_to_stock length : {len(self.code_to_stock)}')
         
         self.EventLoop()
         
@@ -171,7 +179,108 @@ class KiwoomWorker:
                 self.windowQ.put([Q_LIST["로그텍스트2"], "pickle데이터 저장 완료"])
         
         self.windowQ.put([Q_LIST["로그텍스트2"], "종목정보 수신 완료"])
+        
+    def download_candle(self, candle_ymd):
+        if isfile(STOCK_PATH):
+            conn_stock = sqlite3.connect(STOCK_PATH)
+        else:
+            self.windowQ.put([Q_LIST["로그텍스트2"], "stock.db 파일이 없습니다."])
+            return
+        
+        cur_stock = conn_stock.cursor()
+        
+        # TODO 2026-01-24 전체 주식의 code를 구한다.
+        stock_codes = cur_stock.execute("SELECT code FROM market_data;").fetchall()
+        
+        for stock_code in stock_codes:
+            stock_code = stock_code[0] # 종목 코드명
+            print(f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작")
+            self.windowQ.put([Q_LIST["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작"])
+            con_candle = sqlite3.connect(CANDLE_PATH)
+            cur_candle = con_candle.cursor()  # DB 연결
+        
+            # TODO 2026-01-24 일봉 다운로드
+            candle_url = f"{API_URL}/api/dostk/chart"
 
+            headers = {
+                'Content-Type': 'application/json;charset=UTF-8',
+                'authorization': f'Bearer {self.settings.value("api_token", "")}',
+                'next-key': '',
+                'api-id': API_ID["일봉차트조회"],
+            }
+            params = {
+                'stk_cd': stock_code,
+                'base_dt': candle_ymd,
+                'upd_stkpc_tp': '1', # 수정주가구분 0 or 1
+            }
+
+            response = requests.post(candle_url, headers=headers, json=params)
+            return_code = response.json()['return_code']
+            return_msg = response.json()['return_msg']
+            
+            # print('Header:', json.dumps({key: response.headers.get(key) for key in ['next-key', 'cont-yn', 'api-id']}, indent=4, ensure_ascii=False))
+            # print('Body:', json.dumps(response.json(), indent=4, ensure_ascii=False))  # JSON 응답을 파싱하여 출력
+            print(f"첫 번째 응답 - {len(response.json()['stk_dt_pole_chart_qry'])}건")
+            
+            if (return_code != 0):
+                self.windowQ.put([Q_LIST["로그텍스트2"], f"일별주가요청 실패 - {return_code} {return_msg}"])
+                
+            # TODO 2026-01-24 header 응답의 cont-yn이 Y이고 next-key가 있을 경우 연속조회 요청
+            stock_data = []
+            stock_data.extend(response.json()['stk_dt_pole_chart_qry'])
+            while response.headers.get('cont-yn') == 'Y' :
+                next_key = response.headers.get('next-key')
+                if not next_key:
+                    return
+                
+                headers = {
+                    'Content-Type': 'application/json;charset=UTF-8',
+                    'authorization': f'Bearer {self.settings.value("api_token", "")}',
+                    'next-key': next_key,
+                    'api-id': API_ID["일봉차트조회"],
+                }
+                
+                last_item = response.json()['stk_dt_pole_chart_qry'][-1]
+                
+                continue_candle_ymd = last_item['dt']
+                
+                print(f"연속조회 일자 - {candle_ymd}")
+                params = {
+                    'stk_cd': stock_code,
+                    'base_dt': continue_candle_ymd,
+                    'upd_stkpc_tp': '1', # 수정주가구분 0 or 1
+                }
+                
+                response = requests.post(candle_url, headers=headers, json=params)
+                print(f"연속조회 응답 - {len(response.json()['stk_dt_pole_chart_qry'])}건")
+                # print('Body:', json.dumps(response.json(), indent=4, ensure_ascii=False))  # JSON 응답을 파싱하여 출력
+                stock_data.extend(response.json()['stk_dt_pole_chart_qry'])
+                sleep(.1)
+                
+            # TODO 2026-01-24 'dt' 컬럼으로 중복 제거
+            df = pd.DataFrame(stock_data)
+            df = df.drop_duplicates(subset=['dt'])
+            duplicate_count = len(stock_data) - len(df)
+            print(f"중복 제거된 건수: {duplicate_count}")
+            print(f"{self.code_to_stock[stock_code]} 일봉 다운로드 완료 - {len(df)}건")
+            
+            # TODO 2026-01-24 candle.db 에 저장
+            for index, row in df.iterrows():
+                cur_candle.execute("INSERT INTO candle VALUES (?,?,?,?,?,?,?,?,?)", (stock_code, row['dt'], row['open_pric'], row['high_pric'], row['low_pric'], row['cur_prc'], row['trde_qty'], row['pred_pre'], row['trde_prica']))
+            
+            print(f"{self.code_to_stock[stock_code]} 일봉 저장 완료")
+            self.windowQ.put([Q_LIST["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 저장 완료"])
+            con_candle.commit()
+
+            cur_candle.close()
+            con_candle.close()
+            
+            sleep(3)
+        
+        cur_stock.close()
+        conn_stock.close()
+            
+            
     def EventLoop(self):
         while True:
             if not self.eventQ.empty():
@@ -192,14 +301,24 @@ class KiwoomWorker:
                     self.windowQ.put([Q_LIST["API_TOKEN"], api_token])
                     self.windowQ.put([Q_LIST["MOCK_API_TOKEN"], mock_api_token])
                     
-                    self.teleQ.put(f"API_TOKEN - {api_token}")
-                    self.teleQ.put(f"MOCK_API_TOKEN - {mock_api_token}")
+                    # TODO 2026-01-24 텔레그램 메시지 발송 주석 처리(임시)
+                    # self.teleQ.put(f"API_TOKEN - {api_token}")
+                    # self.teleQ.put(f"MOCK_API_TOKEN - {mock_api_token}")
 
                 elif event[0] == "account_info":
                     self.get_account_info()
                     
                 elif event[0] == "market_data":
                     self.download_market_data()
+                    
+                elif event[0] == "candle_save":
+                    # TODO 2026-01-24 일봉 저장
+                    self.candle_range = event[1]  # 이벤트 타입 정의(전체기간, 일부기간)
+                    self.candle_ymd = event[2]  # 기준일자는 키움증권에 필요
+                    self.candle_provider = event[3] # 일봉 제공자(야후파이낸스, 키움증권)
+                    
+                    print(f"candle_save - {self.candle_range}, {self.candle_ymd}, {self.candle_provider}")
+                    self.download_candle(self.candle_ymd)
                     
             time.sleep(0.0001)
             

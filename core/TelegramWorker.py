@@ -10,8 +10,7 @@ class TelegramWorker:
         self.eventQ = qlist[0]
         self.windowQ = qlist[1]
         self.settingsQ = qlist[2]
-        self.dataQ = qlist[3]
-        self.teleQ = qlist[4]
+        self.teleQ = qlist[3]
 
         self.token = "7468273764:AAGLOPP9mHSTlGYbkJ2Z1rYTvSyO_PlcUaQ"
         self.bot = telegram.Bot(token=self.token)

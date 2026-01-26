@@ -1,2 +1,5 @@
 *.pyc
 .DS_Store
+constants/__pycache__/
+util/__pycache__/
+data/db/candle.db

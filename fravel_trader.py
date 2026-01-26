@@ -74,7 +74,7 @@ class MyApp(QMainWindow):
             table = self.ui.table_balance
             table.setRowCount(1)
             # 총 매입 | 평가금액 | 손익금액 | 수익률 | 예수금 | 예탁자산
-            for col in range(6):
+            for col in range(6): 
                 if col == 0: # 총 매입
                     item = QTableWidgetItem(f"{int(data[1]['tot_buy_amt']):,.0f}")
                 elif col == 1: # 평가금액
@@ -293,7 +293,6 @@ class MyApp(QMainWindow):
         self.ui.table_stock_ohlcv.itemClicked.connect(self.stock_ohlcv_item_clicked)
         self.ui.table_stock_ohlcv.itemSelectionChanged.connect(self.stock_ohlcv_item_clicked)
         
-        
     def get_account_info(self):
         # TODO 2026-01-23 계좌 정보 조회
         eventQ.put(["account_info"])
@@ -308,11 +307,11 @@ class MyApp(QMainWindow):
 
     def get_candle(self):
         # TODO 2025-02-10 전체, 최신 일봉 => 기간 설정으로 변경 (전체 다운로드는 별도 쿼리로 처리하는게 나을듯..)
-        eventQ.put(["candle_save", self.settings.value("candle_day_range", "7"), self.today, self.candle_provider, 'save']) # 저장
+        eventQ.put(["candle_save", self.settings.value("candle_day_range", "7"), self.today, self.settings.value("candle_provider", "kiwoom"), 'save']) # 저장
     
     def delete_save_candle(self):
         # TODO 2025-02-12 저장된 일봉 삭제 후 다운로드
-        eventQ.put(["candle_save", self.settings.value("candle_day_range", "7"), self.today, self.candle_provider, 'delete_save']) # 삭제 후 저장
+        eventQ.put(["candle_save", self.settings.value("candle_day_range", "7"), self.today, self.settings.value("candle_provider", "kiwoom"), 'delete_save']) # 삭제 후 저장
     
     def set_real_reg_all(self):
         # 2022-11-30 틱 다운로드 요청
@@ -462,8 +461,8 @@ class Writer(QThread):
             time.sleep(0.0001)
 
 if __name__ == "__main__":
-    eventQ, windowQ, settingsQ, dataQ, teleQ = Queue(), Queue(), Queue(), Queue(), Queue()
-    qlist = [eventQ, windowQ, settingsQ, dataQ, teleQ]
+    eventQ, windowQ, settingsQ, teleQ = Queue(), Queue(), Queue(), Queue()
+    qlist = [eventQ, windowQ, settingsQ, teleQ]
     
     kiwoom_proc = Process(target=KiwoomWorker, args=(qlist,), daemon=True)
     kiwoom_proc.start()
