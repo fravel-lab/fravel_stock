@@ -3,3 +3,5 @@
 constants/__pycache__/
 util/__pycache__/
 data/db/candle.db
+data/db/*.db
+*.db
