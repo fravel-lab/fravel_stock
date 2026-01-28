@@ -11,7 +11,14 @@ conda env list
 conda activate py311
 
 현재 실행중인 환경으로 설치
-python -m pip install pyqt5 psutil pyqtgraph
+python -m pip install pyqt5 psutil pyqtgraph requests pandas websockets python-telegram-bot
 python -m pip install pylance
 
 conda install -c conda-forge qt-main
+
+# 현재 conda 환경 삭제
+conda deactivat
+conda env remove -n py311
+
+# 콘다 환경 설치
+conda create -n py311 python=3.11 -c conda-forge -y

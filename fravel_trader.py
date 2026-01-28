@@ -1,16 +1,18 @@
 __main__ = "__main__"
 
 import os
+import sys
+
 import pickle
 from pprint import pprint
-import sys
 from multiprocessing import Process, Queue
 import time
 from typing import Any
 
-from PyQt5.QtCore import QDate, QSettings, QThread, Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QDate, QSettings, QThread, QTime, QTimer, Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QIntValidator
-from PyQt5.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox, QTableWidgetItem
+from PyQt5.QtWidgets import QApplication, QFileDialog, QHeaderView, QLabel, QMainWindow, QMessageBox, QTableWidgetItem
+import requests
 
 from constants.stock_settings import (BASE_DIR, CANDLE_PATH,
                                       CODE_TO_STOCK_PATH, DATA_DIR, DB_DIR,
@@ -19,8 +21,9 @@ from constants.stock_settings import (BASE_DIR, CANDLE_PATH,
                                       STOCK_PATH, STOCK_TO_CODE_PATH, TICK_DIR)
 from core.KiwoomWorker import KiwoomWorker
 from ui.fravel_trader_ui import Ui_MainWindow
-from util.FravelUtils import set_dark_theme, set_item_color, set_light_theme
+from util.FravelUtils import get_actual_change_rate, get_cpu_memory_info, parse_change_rate, set_dark_theme, set_item_color, set_light_theme
 from core.TelegramWorker import TelegramWorker
+import socket
 
 
 class MyApp(QMainWindow):
@@ -36,6 +39,11 @@ class MyApp(QMainWindow):
         self.account = ''
         self.candle_latest_date = '' # TODO 2024-12-04 candle.db의 최신 날짜
         self.current_stock_name = ''
+        
+        # 계좌 정보 갱신용 타이머 설정
+        self.account_timer = QTimer(self)
+        self.account_timer.setInterval(1000)
+        self.account_timer.timeout.connect(self.request_account_info)
         
         self.ui.setupUi(self)
         self.resize(2300, 1500)
@@ -54,13 +62,45 @@ class MyApp(QMainWindow):
             self.code_to_stock = {}
             self.stock_to_code = {}
             self.ui.text_ouput.append(f"pickle데이터 로드 실패 - {e}")
+            
+        
+        # TODO 2024-08-17 현재 PC상태 출력
+        self.os = sys.platform
+        self.timer = QTimer(self)
+        self.timer.start(1000)
+        
+        self.my_ip = requests.get("https://api.ipify.org?format=json").json()['ip']
+        self.timer.timeout.connect(self.update_pc_status)
         
         self.writer = Writer()
         self.writer.signal_log.connect(self.update_output)
         self.writer.signal_table.connect(self.update_table)
         self.writer.signal_text.connect(self.update_text)
         self.writer.start()
-    
+        
+    def update_pc_status(self):
+        cur_time = QTime.currentTime()
+        text_time = cur_time.toString("hh:mm:ss")
+
+        cur_date = QDate.currentDate()
+        day_of_week = cur_date.dayOfWeek()
+
+        # TODO 2024-12-02 월~금, 
+        if 1 <= day_of_week <= 5:
+            # TODO 2024-12-02 09:00 ~ 15:30 이면 장중, 아이면 개장전
+            start_time = QTime(9, 0, 0)  # 09:00:00
+            end_time = QTime(15, 30, 0)  # 15:30:00
+            if start_time <= cur_time <= end_time:
+                day_msg = "장중"
+            else:
+                day_msg = "개장전"
+        else:
+            day_msg = "주말"
+
+        time_msg = "현재시간: " + text_time + " | " + day_msg
+        
+        self.statusBar().showMessage(time_msg + " | " + get_cpu_memory_info() + " | " + self.my_ip)
+
     def update_output(self, text, index):
         if index == 1: # 메인 로그창
             self.ui.text_ouput.append(text)
@@ -92,7 +132,73 @@ class MyApp(QMainWindow):
                     
                 item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 table.setItem(0, col, item)
-    
+            
+            # TODO 2026-01-27 상세 계좌정보 출력
+            table_banlance_detail = self.ui.table_balance_detail
+            table_banlance_detail.setRowCount(len(data[1]['day_bal_rt']))
+            detail_data = data[1]['day_bal_rt']
+            for index, row in enumerate(detail_data):
+                print(f"row: {row}")
+                print(f"index: {index}")
+                for col in range(6):
+                    if col == 0: # 종목명
+                        item = QTableWidgetItem(row['stk_nm'])
+                    elif col == 1: # 평가손익
+                        # item = QTableWidgetItem(f"{int(row['evltv_prft']):,.0f}") # 반올림 처리됨
+                        item = QTableWidgetItem(f"{format(int(row['evltv_prft']), ',')}") # 
+                    elif col == 2: # 수익률
+                        item = QTableWidgetItem(f"{row['prft_rt']}%")
+                        set_item_color(item, row['prft_rt'])
+                    elif col == 3: # 매입가
+                        item = QTableWidgetItem(f"{int(row['buy_uv']):,.0f}")
+                    elif col == 4: # 보유수량
+                        item = QTableWidgetItem(f"{int(row['rmnd_qty']):,.0f}")
+                    elif col == 5: # 현재가
+                        item = QTableWidgetItem(f"{int(row['cur_prc']):,.0f}")
+                    item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    print(index, col)
+                    table_banlance_detail.setItem(index, col, item)
+        
+        # TODO 2026-01-27 조건검색목록 결과 처리
+        elif data[0] == Q_LIST["조건검색목록 결과"]:
+            print(f"조건검색목록 결과: {data}")
+            list_condition = self.ui.list_condition           
+            list_condition.clear()
+            condition_data = data[1]['data']
+            print(f"condition_data: {condition_data}")
+            for item in condition_data:
+                list_condition.addItem(item[1])
+        # TODO 2026-01-27 조건검색 요청 결과 처리
+        elif data[0] == Q_LIST["조건검색 요청 결과"]:
+            print(f"조건검색 요청 결과: {data}")
+            table_condition_stock = self.ui.table_condition_stock
+            table_condition_stock.setRowCount(len(data[1]['data']))
+            for index, row in enumerate(data[1]['data']):
+                print(f"row: {row}")
+                print(f"index: {index}")
+                for col in range(4):
+                    if col == 0: # 종목명
+                        item = QTableWidgetItem(row['302'])
+                    elif col == 1: # 현재가
+                        item = QTableWidgetItem(format(int(row['10']), ','))
+                        # item = QTableWidgetItem(f"{int(row['cur_prc']):,.0f}")
+                        item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    elif col == 2: # 대비
+                        item = QTableWidgetItem(f"{format(int(row['11']), ',')}")
+                        item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                        set_item_color(item, row['11'])
+                    elif col == 3: # 등락률
+                        # item.setText(f"{rate_percent:.2f}")로 변경 후, 테이블에서 setSortingEnabled(True)와 setItemDelegateForColumn(3, NumericDelegate)같은 커스텀 델리게이트를 추가하거나
+                        # 또는 item.setData(Qt.DisplayRole, float(rate_percent))로 실제 float 값을 저장하면 숫자 정렬이 작동합니다.")
+                        rate_percent = get_actual_change_rate(int(row['10']), int(row['11']))
+                        item = QTableWidgetItem()
+                        item.setData(Qt.DisplayRole, float(f"{rate_percent:.2f}"))
+                        # item = QTableWidgetItem(f"{rate_percent:.2f}")
+                        item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                        set_item_color(item, str(rate_percent))
+
+                    table_condition_stock.setItem(index, col, item)
+                    
     def update_text(self, data):
         self.ui.text_output.append(data)
         
@@ -146,7 +252,6 @@ class MyApp(QMainWindow):
         self.ui.btn_save_candle.clicked.connect(self.get_candle)
         self.ui.btn_delete_save_candle.clicked.connect(self.delete_save_candle)
         
-        
         self.ui.btn_tick_down.clicked.connect(self.set_real_reg_all)  # 2022-11-30 틱 다운로드 시작
         self.ui.btn_save_now.clicked.connect(self.get_tick_now)  # 2022-11-30 현재 틱 즉시 다운로드
         self.ui.btn_stock_down.clicked.connect(self.get_market_data)
@@ -164,6 +269,16 @@ class MyApp(QMainWindow):
         self.ui.table_balance.setColumnWidth(1, 85) # 수익률
         self.ui.table_balance.setColumnWidth(2, 85) # 수익률
         self.ui.table_balance.setColumnWidth(3, 70) # 수익률
+        
+        # TODO 2026-01-27 상세 계좌정보 테이블 세팅
+        # self.ui.table_balance_detail.setColumnWidth(0, 160) # 종목명
+        self.ui.table_balance_detail.setColumnWidth(1, 85) # 평가손익
+        self.ui.table_balance_detail.setColumnWidth(2, 85) # 수익률
+        self.ui.table_balance_detail.setColumnWidth(3, 80) # 매입가
+        self.ui.table_balance_detail.setColumnWidth(4, 70) # 보유수량
+        self.ui.table_balance_detail.setColumnWidth(5, 80) # 현재가
+        self.ui.table_balance_detail.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch) # 첫항목 stretch
+        # self.ui.table_balance_detail.setAlternatingRowColors(True)
         
         # 기본 전체종목 테이블
         self.ui.table_stock_list.setColumnWidth(0, 180)
@@ -210,10 +325,12 @@ class MyApp(QMainWindow):
         self.ui.table_stock_ohlcv.setColumnWidth(4, 80) # 종가
         self.ui.table_stock_ohlcv.setColumnWidth(5, 90) # 거래량
         
-        self.ui.table_condition_stock.setColumnWidth(0, 160) # 종목명
+        # TODO 2026-01-27 조건검색 결과 테이블 세팅
+        self.ui.table_condition_stock.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch) # 첫항목 stretch
+        self.ui.table_condition_stock.setSortingEnabled(True)
         self.ui.table_condition_stock.setColumnWidth(1, 90) # 현재가
         self.ui.table_condition_stock.setColumnWidth(2, 90) # 대비
-        # self.ui.table_condition_stock.setColumnWidth(3, 70) # 등락률
+        self.ui.table_condition_stock.setColumnWidth(3, 60) # 등락률    
         
         self.ui.text_candle_db_path.setText("./data/db/candle.db")
         self.ui.text_candle_db_path.setReadOnly(True) # 읽기 전용
@@ -294,7 +411,16 @@ class MyApp(QMainWindow):
         self.ui.table_stock_ohlcv.itemSelectionChanged.connect(self.stock_ohlcv_item_clicked)
         
     def get_account_info(self):
-        # TODO 2026-01-23 계좌 정보 조회
+        # TODO 2026-01-23 계좌 정보 조회 버튼 클릭 시 타이머 시작
+        if not self.account_timer.isActive():
+            self.ui.text_ouput.append("계좌 정보 자동 갱신 시작 (1초 주기)")
+            self.account_timer.start()
+        else:
+            self.ui.text_ouput.append("계좌 정보 자동 갱신 중지")
+            self.account_timer.stop()
+
+    def request_account_info(self):
+        # 실제 API 요청을 보내는 함수
         eventQ.put(["account_info"])
     
     def delete_candle(self):
@@ -355,13 +481,16 @@ class MyApp(QMainWindow):
     def load_condition(self):
         # TODO 2024-12-06 조건식 로드
         self.ui.text_ouput.append("조건식 로드 - 요청")
-        # eventQ.put(["condition_load"])
+        
+        eventQ.put(["condition_load"])
     
     def load_condition_detail(self):
         # TODO 2024-12-06 조건식에 해당하는 종목 로드 요청
-        self.ui.text_ouput.append("조건식 세부 종목 - 요청")
+        self.ui.text_ouput.append(f"조건식 세부 종목 - {self.ui.list_condition.currentItem().text()}")
         # 000 : 항목명
-        eventQ.put(["condition_detail", self.ui.list_condition.currentItem().text()])
+        condition_index = self.ui.list_condition.currentRow()
+        print(f"조건검색 index: {condition_index}")
+        eventQ.put(["condition_detail", condition_index])
     
     # def account_changed(self, index):
     #     # account 클래스 변수에 계좌번호 업데이트
@@ -453,10 +582,16 @@ class Writer(QThread):
             elif data[0] == Q_LIST["API_TOKEN"]:
                 print(f"API_TOKEN 수신: {data[1]}")
                 self.settings.setValue("api_token", data[1])
+                # TODO 2026-01-27 API_TOKEN을 수신하였으면 웹소켓 스레드 시작 명령 전달
+                eventQ.put(["start_websocket"])
             elif data[0] == Q_LIST["MOCK_API_TOKEN"]:
                 print(f"MOCK_API_TOKEN 수신: {data[1]}")
                 self.settings.setValue("mock_api_token", data[1])
             elif data[0] == Q_LIST["계좌정보"]:
+                self.signal_table.emit(data)
+            elif data[0] == Q_LIST["조건검색목록 결과"]:
+                self.signal_table.emit(data)
+            elif data[0] == Q_LIST["조건검색 요청 결과"]:
                 self.signal_table.emit(data)
             time.sleep(0.0001)
 

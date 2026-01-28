@@ -81,7 +81,6 @@ def clear_table(_table):
     while _table.rowCount() > 0:
         _table.removeRow(0)
 
-
 def get_cpu_memory_info():
     cpu = psutil.cpu_times_percent()
     cpu = 100 - cpu.idle
@@ -181,3 +180,35 @@ def change_format(text, dotdowndel=False, dotdown8=False):
             elif len(format_data.split('.')[1]) == 1:
                 format_data += '0'
     return format_data
+
+def get_actual_change_rate(current: float, diff: float, rate_str: str = None) -> float:
+    """
+    현재가(current), 전일대비(diff), API 등락률 문자열(rate_str)을 받아
+    실제 퍼센트 등락률을 계산합니다.
+
+    - 현재가와 전일 대비가 있으면 항상 정확한 값으로 계산
+    - rate_str은 참고용
+    """
+    # 1. 전일 종가 계산
+    prev_close = current - diff
+
+    if prev_close == 0:
+        raise ValueError("전일 종가가 0이면 등락률을 계산할 수 없습니다.")
+
+    # 2. 실제 등락률 계산
+    actual_rate = (diff / prev_close) * 100
+
+    return actual_rate
+
+def parse_change_rate(rate_str: str) -> float:
+    """
+    문자열 형태의 전일대비 등락률을 실수 퍼센트로 변환
+    예: "-00002560" -> -2.56 (%)
+    """
+    # 1. 문자열을 정수로 변환
+    rate_int = int(rate_str)
+    
+    # 2. API 단위 변환 (10000으로 나누어 퍼센트 변환)
+    rate_percent = rate_int / 10000
+    
+    return rate_percent

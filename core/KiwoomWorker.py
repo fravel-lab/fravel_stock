@@ -10,8 +10,12 @@ import requests
 import json
 from time import sleep
 from pprint import pprint
-from constants.stock_settings import API_ID, CANDLE_PATH, CODE_TO_STOCK_PATH, Q_LIST, STOCK_PATH, STOCK_TO_CODE_PATH
+from constants.stock_settings import API_ID, CANDLE_PATH, CODE_TO_STOCK_PATH, Q_LIST, STOCK_PATH, STOCK_TO_CODE_PATH, TR_DICT
 import pandas as pd
+from queue import Queue as ThreadQueue
+
+from core.WebSocketWorker import WebSocketWorker
+
 
 app = QtWidgets.QApplication(sys.argv)
 
@@ -39,6 +43,10 @@ class KiwoomWorker:
         self.settingsQ = _qlist[2]
         self.teleQ = _qlist[3]
         
+        self.ws_worker = None
+        self.ws_sendQ = None
+        self.ws_recvQ = None
+        
         # TODO 2024-08-18 피클 데이터 초기화
         if len(self.code_to_stock) == 0:
             with open(CODE_TO_STOCK_PATH, "rb") as f:
@@ -62,9 +70,19 @@ class KiwoomWorker:
             'appkey': api_key,
             'secretkey': api_secret,
         }
-        r = requests.post(token_url, headers=headers, json=params)
+        response = requests.post(token_url, headers=headers, json=params)
         
-        return r.json()['token']
+        print('Code:', response.status_code)
+        print('Header:', json.dumps({key: response.headers.get(key) for key in ['next-key', 'cont-yn', 'api-id']}, indent=4, ensure_ascii=False))
+        
+        return_code = response.json()['return_code']
+        return_msg = response.json()['return_msg']
+        
+        if (return_code != 0):
+            self.windowQ.put([Q_LIST["로그텍스트"], f"토큰 요청 실패 - {return_msg}"])
+            return
+        
+        return response.json()['token']
     
     def create_header(self, url, api_id):
         # TODO 2026-01-23 헤더 생성 함수(연속조회 안하는 경우만)
@@ -92,7 +110,7 @@ class KiwoomWorker:
             # print('Header:', json.dumps({key: response.headers.get(key) for key in ['next-key', 'cont-yn', 'api-id']}, indent=4, ensure_ascii=False))
             # print('Body:', json.dumps(response.json(), indent=4, ensure_ascii=False))  # JSON 응답을 파싱하여 출력
             self.windowQ.put([Q_LIST["계좌정보"], response.json()])
-            self.windowQ.put([Q_LIST["로그텍스트"], f"계좌정보 수신 완료"])
+            # self.windowQ.put([Q_LIST["로그텍스트"], f"계좌정보 수신 완료"])
         else:
             self.windowQ.put([Q_LIST["로그텍스트"], "API 토큰이 없습니다."])
     
@@ -192,10 +210,13 @@ class KiwoomWorker:
         # TODO 2026-01-24 전체 주식의 code를 구한다.
         stock_codes = cur_stock.execute("SELECT code FROM market_data;").fetchall()
         
-        for stock_code in stock_codes:
+        for index, stock_code in enumerate(stock_codes):
+            # TODO 2026-01-26 특정 index 이후로 다운받으려면 아래 코드 실행
+            if index < 1695: # 해당 종목의 index-1
+                continue
             stock_code = stock_code[0] # 종목 코드명
-            print(f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작")
-            self.windowQ.put([Q_LIST["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작"])
+            print(f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작 - {index + 1} / {len(stock_codes)}")
+            self.windowQ.put([Q_LIST["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작 - {index + 1} / {len(stock_codes)}"])
             con_candle = sqlite3.connect(CANDLE_PATH)
             cur_candle = con_candle.cursor()  # DB 연결
         
@@ -228,6 +249,7 @@ class KiwoomWorker:
             # TODO 2026-01-24 header 응답의 cont-yn이 Y이고 next-key가 있을 경우 연속조회 요청
             stock_data = []
             stock_data.extend(response.json()['stk_dt_pole_chart_qry'])
+            cont_cnt = 1
             while response.headers.get('cont-yn') == 'Y' :
                 next_key = response.headers.get('next-key')
                 if not next_key:
@@ -255,7 +277,12 @@ class KiwoomWorker:
                 print(f"연속조회 응답 - {len(response.json()['stk_dt_pole_chart_qry'])}건")
                 # print('Body:', json.dumps(response.json(), indent=4, ensure_ascii=False))  # JSON 응답을 파싱하여 출력
                 stock_data.extend(response.json()['stk_dt_pole_chart_qry'])
-                sleep(.1)
+                sleep(.2)
+                cont_cnt += 1
+                
+                # TODO 2026-01-27 연속조회 최대 5번 시도
+                if cont_cnt > 5:
+                    break
                 
             # TODO 2026-01-24 'dt' 컬럼으로 중복 제거
             df = pd.DataFrame(stock_data)
@@ -280,9 +307,39 @@ class KiwoomWorker:
         cur_stock.close()
         conn_stock.close()
             
-            
+    def start_websocket(self, api_token):
+        self.windowQ.put([Q_LIST["로그텍스트"], "WebSocket 시작"])
+        self.ws_sendQ = ThreadQueue()
+        self.ws_recvQ = ThreadQueue()
+        
+        self.ws_worker = WebSocketWorker(
+            token=api_token,
+            sendQ=self.ws_sendQ,
+            recvQ=self.ws_recvQ,
+            windowQ=self.windowQ,
+        )
+        
+        self.ws_worker.daemon = True
+        self.ws_worker.start()
+        
     def EventLoop(self):
         while True:
+            if self.ws_recvQ is not None and self.ws_worker is not None:
+                # while not self.ws_recvQ.empty() and self.ws_worker.is_alive():
+                while not self.ws_recvQ.empty():
+                    print("WS 수신 루프 실행")
+                    data = self.ws_recvQ.get()
+                    trnm = data.get("trnm")
+                    
+                    # self.windowQ.put([Q_LIST["로그텍스트"], f"WS Receive - {trnm} : {data}"])
+
+                    if trnm == TR_DICT["조건검색목록"]: # CNSRLST
+                        self.windowQ.put([Q_LIST["조건검색목록 결과"], data])
+                    elif trnm == TR_DICT["조건검색 요청 실시간"]: # CNSRREQ
+                        self.windowQ.put([Q_LIST["조건검색 요청 결과"], data])
+                    else:
+                        self.windowQ.put([Q_LIST["로그텍스트"], f"미처리 WS 데이터: {data}"])
+                    
             if not self.eventQ.empty():
                 event = self.eventQ.get()
                 
@@ -320,6 +377,61 @@ class KiwoomWorker:
                     print(f"candle_save - {self.candle_range}, {self.candle_ymd}, {self.candle_provider}")
                     self.download_candle(self.candle_ymd)
                     
+                elif event[0] == "start_websocket": # TODO 2026-01-27 웹소켓 스레드 시작
+                    print("start_websocket")
+                    api_token = self.settings.value("api_token", "")
+                    
+                    if not api_token:
+                        self.windowQ.put([Q_LIST["로그텍스트"], "WebSocket 시작 실패: API 토큰 없음"])
+                        return
+                    
+                    self.start_websocket(api_token)
+                
+                elif event[0] == "stop_websocket": # TODO 2026-01-27 웹소켓 스레드 종료
+                    if self.ws_worker:
+                        self.ws_worker.stop()
+                        self.ws_worker = None
+                        self.windowQ.put([Q_LIST["로그텍스트"], "WebSocket 스레드 종료"])
+                        
+                elif event[0] == "condition_load": # TODO 2026-01-27 조건식 로드
+                    if not self.ws_worker or not self.ws_worker.is_alive():
+                        self.windowQ.put(["LOG", "WebSocket 미연결"])
+                        return
+
+                    cmd = {
+                        "trnm": TR_DICT["조건검색목록"], # CNSRLST
+                    }
+
+                    self.ws_sendQ.put(cmd)
+                
+                elif event[0] == "condition_detail": # TODO 2026-01-27 조건식 세부 종목 로드
+                    if not self.ws_worker or not self.ws_worker.is_alive():
+                        self.windowQ.put(["LOG", "WebSocket 미연결"])
+                        return
+                    
+                    # TODO 2026-01-27 조건식 세부 종목 요청
+                    condition_index = event[1]
+                    # 실시간 검색 방식(추후 사용 예정)
+                    # cmd = {
+                    #     "trnm": TR_DICT["조건검색 요청 실시간"], # CNSRLST
+                    #     "seq" : condition_index, # 조건검색식 일련번호
+                    #     "search_type" : "0", # 1: 조건검색+실시간조건검색
+                    #     "stex_tp" : "K" # K:KRX
+                    # }
+                    
+                    # 일반 조건검색 방식(실시간 아님)
+                    cmd = {
+                        "trnm" : TR_DICT["조건검색 요청 일반"], #
+                        "seq" : condition_index, # 조건검색식 일련번호
+                        "search_type" : "0", # 0: 일반
+                        "stex_tp" : "K",
+                        # "cont_yn" : "N", # 필수 아님
+                        # "next_key" : "" # 필수 아님
+                    }
+
+                    self.ws_sendQ.put(cmd)
+
+            
             time.sleep(0.0001)
             
             
