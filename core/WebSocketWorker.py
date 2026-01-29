@@ -5,7 +5,7 @@ from PyQt5.QtCore import QSettings
 import websockets
 import traceback
 
-from constants.stock_settings import FRAVEL_TRADER_SETTING_PATH, Q_LIST, TR_DICT
+from constants.stock_settings import FRAVEL_TRADER_SETTING_PATH, RESPONSE_DICT, TR_DICT
 
 class WebSocketWorker(threading.Thread):
     def __init__(self, token, sendQ, recvQ, windowQ):
@@ -14,8 +14,10 @@ class WebSocketWorker(threading.Thread):
 
         if self.settings.value("trading_type", "mock") == "mock":
             self.socket_url = "wss://mockapi.kiwoom.com:10000/api/dostk/websocket"
+            print(f"WebSocketWorker 모의투자 연결 : {self.socket_url}")
         else:
             self.socket_url = "wss://api.kiwoom.com:10000/api/dostk/websocket"
+            print(f"WebSocketWorker 실전 연결 : {self.socket_url}")
             
         self.token = token
         self.sendQ = sendQ
@@ -48,7 +50,7 @@ class WebSocketWorker(threading.Thread):
     # 메인 asyncio 루프
     # ===============================
     async def _main(self):
-        self._log("WebSocket 연결 시도")
+        self._log("WS 연결 시도")
         async with websockets.connect(self.socket_url) as ws:
             self.websocket = ws
 
@@ -67,7 +69,11 @@ class WebSocketWorker(threading.Thread):
             "token": self.token,
         }
         await self.websocket.send(json.dumps(msg))
-        self._log("WebSocket LOGIN 전송")
+        
+        if self.settings.value("trading_type", "mock") == "mock":
+            self._log(f"WS 모의투자 로그인 요청 : {json.dumps(msg)}")
+        else:
+            self._log(f"WS 실전 로그인 요청 : {json.dumps(msg)}")
         
         # 로그인 응답 대기
         raw = await self.websocket.recv()
@@ -76,7 +82,10 @@ class WebSocketWorker(threading.Thread):
         if data.get("return_code") != 0:
             raise RuntimeError(f"LOGIN 실패: {data}")
         
-        self._log("WebSocket LOGIN 성공")
+        if self.settings.value("trading_type", "mock") == "mock":
+            self._log(f"WS 모의투자 로그인 성공 : {json.dumps(data)}")
+        else:
+            self._log(f"WS 실전 로그인 성공 : {json.dumps(data)}")
 
     # ===============================
     # 수신 루프 (키움 서버에서 오는 메시지)
@@ -145,4 +154,4 @@ class WebSocketWorker(threading.Thread):
     # ===============================
     def _log(self, msg):
         if self.windowQ:
-            self.windowQ.put([Q_LIST["로그텍스트"], msg])
+            self.windowQ.put([RESPONSE_DICT["로그텍스트"], msg])

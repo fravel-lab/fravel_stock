@@ -11,13 +11,13 @@ from typing import Any
 
 from PyQt5.QtCore import QDate, QSettings, QThread, QTime, QTimer, Qt, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QIntValidator
-from PyQt5.QtWidgets import QApplication, QFileDialog, QHeaderView, QLabel, QMainWindow, QMessageBox, QTableWidgetItem
+from PyQt5.QtWidgets import QApplication, QFileDialog, QHeaderView, QLabel, QMainWindow, QMessageBox, QStyledItemDelegate, QTableWidgetItem
 import requests
 
 from constants.stock_settings import (BASE_DIR, CANDLE_PATH,
-                                      CODE_TO_STOCK_PATH, DATA_DIR, DB_DIR,
+                                      CODE_TO_STOCK_PATH, DATA_DIR, DB_DIR, EVENT_DICT,
                                       FAVORITE_PATH,
-                                      FRAVEL_TRADER_SETTING_PATH, Q_LIST, SETTINGS_DIR,
+                                      FRAVEL_TRADER_SETTING_PATH, RESPONSE_DICT, SETTINGS_DIR,
                                       STOCK_PATH, STOCK_TO_CODE_PATH, TICK_DIR)
 from core.KiwoomWorker import KiwoomWorker
 from ui.fravel_trader_ui import Ui_MainWindow
@@ -26,6 +26,25 @@ from core.TelegramWorker import TelegramWorker
 import socket
 
 
+
+class NumberFormatDelegate(QStyledItemDelegate):
+    def displayText(self, value, locale):
+        if isinstance(value, (int, float)):
+            if isinstance(value, float):
+                formatted_value = "{:,.2f}".format(value)
+                if value > 0:
+                    return "+" + formatted_value + "%"
+                else:
+                    return formatted_value + "%"
+            else:
+                formatted_value = "{:,}".format(value)
+                if value > 0:
+                    return "+" + formatted_value
+                else:
+                    return formatted_value
+        return super().displayText(value, locale)
+    
+    
 class MyApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -109,7 +128,7 @@ class MyApp(QMainWindow):
     
     @pyqtSlot(list)
     def update_table(self, data):
-        if data[0] == Q_LIST["계좌정보"]:
+        if data[0] == RESPONSE_DICT["계좌정보"]:
             pprint(data[1])
             table = self.ui.table_balance
             table.setRowCount(1)
@@ -160,7 +179,7 @@ class MyApp(QMainWindow):
                     table_banlance_detail.setItem(index, col, item)
         
         # TODO 2026-01-27 조건검색목록 결과 처리
-        elif data[0] == Q_LIST["조건검색목록 결과"]:
+        elif data[0] == RESPONSE_DICT["조건검색목록 결과"]:
             print(f"조건검색목록 결과: {data}")
             list_condition = self.ui.list_condition           
             list_condition.clear()
@@ -169,7 +188,7 @@ class MyApp(QMainWindow):
             for item in condition_data:
                 list_condition.addItem(item[1])
         # TODO 2026-01-27 조건검색 요청 결과 처리
-        elif data[0] == Q_LIST["조건검색 요청 결과"]:
+        elif data[0] == RESPONSE_DICT["조건검색 요청 결과"]:
             print(f"조건검색 요청 결과: {data}")
             table_condition_stock = self.ui.table_condition_stock
             table_condition_stock.setRowCount(len(data[1]['data']))
@@ -184,20 +203,24 @@ class MyApp(QMainWindow):
                         # item = QTableWidgetItem(f"{int(row['cur_prc']):,.0f}")
                         item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     elif col == 2: # 대비
-                        item = QTableWidgetItem(f"{format(int(row['11']), ',')}")
+                        item = QTableWidgetItem()
+                        item.setData(Qt.EditRole, int(row['11']))
                         item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                         set_item_color(item, row['11'])
                     elif col == 3: # 등락률
-                        # item.setText(f"{rate_percent:.2f}")로 변경 후, 테이블에서 setSortingEnabled(True)와 setItemDelegateForColumn(3, NumericDelegate)같은 커스텀 델리게이트를 추가하거나
-                        # 또는 item.setData(Qt.DisplayRole, float(rate_percent))로 실제 float 값을 저장하면 숫자 정렬이 작동합니다.")
                         rate_percent = get_actual_change_rate(int(row['10']), int(row['11']))
                         item = QTableWidgetItem()
-                        item.setData(Qt.DisplayRole, float(f"{rate_percent:.2f}"))
-                        # item = QTableWidgetItem(f"{rate_percent:.2f}")
+                        item.setData(Qt.DisplayRole, float(rate_percent))
                         item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                         set_item_color(item, str(rate_percent))
 
                     table_condition_stock.setItem(index, col, item)
+            
+            delegate = NumberFormatDelegate(table_condition_stock)
+            
+            # table_condition_stock.setItemDelegate(1, delegate)
+            table_condition_stock.setItemDelegateForColumn(2, delegate)
+            table_condition_stock.setItemDelegateForColumn(3, delegate)
                     
     def update_text(self, data):
         self.ui.text_output.append(data)
@@ -213,7 +236,7 @@ class MyApp(QMainWindow):
         if self.ui.text_app_key.text() != "" and self.ui.text_secret_key.text() != "":
             self.ui.text_ouput.append("토큰 요청 - 요청")
             teleQ.put("키움 REST API 토큰 요청")
-            eventQ.put(["reload_token"])
+            eventQ.put([EVENT_DICT["토큰 요청"]])
         else:
             self.ui.text_ouput.append("토큰 요청 실패 - 실전, 모의투자 Key가 없습니다.")
     
@@ -330,7 +353,7 @@ class MyApp(QMainWindow):
         self.ui.table_condition_stock.setSortingEnabled(True)
         self.ui.table_condition_stock.setColumnWidth(1, 90) # 현재가
         self.ui.table_condition_stock.setColumnWidth(2, 90) # 대비
-        self.ui.table_condition_stock.setColumnWidth(3, 60) # 등락률    
+        self.ui.table_condition_stock.setColumnWidth(3, 80) # 등락률    
         
         self.ui.text_candle_db_path.setText("./data/db/candle.db")
         self.ui.text_candle_db_path.setReadOnly(True) # 읽기 전용
@@ -412,16 +435,19 @@ class MyApp(QMainWindow):
         
     def get_account_info(self):
         # TODO 2026-01-23 계좌 정보 조회 버튼 클릭 시 타이머 시작
-        if not self.account_timer.isActive():
-            self.ui.text_ouput.append("계좌 정보 자동 갱신 시작 (1초 주기)")
-            self.account_timer.start()
-        else:
-            self.ui.text_ouput.append("계좌 정보 자동 갱신 중지")
-            self.account_timer.stop()
+        if self.settings.value("trading_type", "mock") == "mock":
+            self.ui.text_ouput.append("모의투자는 계좌 정보 조회 불가")
+        else :
+            if not self.account_timer.isActive():
+                self.ui.text_ouput.append("계좌 정보 자동 갱신 시작 (1초 주기)")
+                self.account_timer.start()
+            else:
+                self.ui.text_ouput.append("계좌 정보 자동 갱신 중지")
+                self.account_timer.stop()
 
     def request_account_info(self):
         # 실제 API 요청을 보내는 함수
-        eventQ.put(["account_info"])
+        eventQ.put([EVENT_DICT["계좌 정보 요청"]])
     
     def delete_candle(self):
         # TODO 2025-02-12 일봉 삭제(기본 7일)
@@ -452,11 +478,8 @@ class MyApp(QMainWindow):
         # eventQ.put(["tick_download", "now"])
     
     def get_market_data(self):
-        # 2022-11-29 코스피, 코스닥 데이터 갱신
-        # windowQ.put("마켓 데이터 - 요청")
-        # QMessageBox.warning(self, "알림", "get_market_data 메서드 주석 해제 필요!")
         self.ui.text_output_2.append("마켓 데이터 - 요청")
-        eventQ.put(["market_data"],)
+        eventQ.put([EVENT_DICT["마켓 데이터 요청"]])
     
     def set_path(self):
         tmp_dir = self.settings.value("path", "C:/_db")
@@ -574,24 +597,24 @@ class Writer(QThread):
     def run(self):
         while True:
             data = windowQ.get()
-            if data[0] == Q_LIST["로그텍스트"]:
+            if data[0] == RESPONSE_DICT["로그텍스트"]:
                 # 메인창
                 self.signal_log.emit(data[1], 1)
-            elif data[0] == Q_LIST["로그텍스트2"]:
+            elif data[0] == RESPONSE_DICT["로그텍스트2"]:
                 self.signal_log.emit(data[1], 2)
-            elif data[0] == Q_LIST["API_TOKEN"]:
+            elif data[0] == RESPONSE_DICT["API_TOKEN"]:
                 print(f"API_TOKEN 수신: {data[1]}")
                 self.settings.setValue("api_token", data[1])
                 # TODO 2026-01-27 API_TOKEN을 수신하였으면 웹소켓 스레드 시작 명령 전달
                 eventQ.put(["start_websocket"])
-            elif data[0] == Q_LIST["MOCK_API_TOKEN"]:
+            elif data[0] == RESPONSE_DICT["MOCK_API_TOKEN"]:
                 print(f"MOCK_API_TOKEN 수신: {data[1]}")
                 self.settings.setValue("mock_api_token", data[1])
-            elif data[0] == Q_LIST["계좌정보"]:
+            elif data[0] == RESPONSE_DICT["계좌정보"]:
                 self.signal_table.emit(data)
-            elif data[0] == Q_LIST["조건검색목록 결과"]:
+            elif data[0] == RESPONSE_DICT["조건검색목록 결과"]:
                 self.signal_table.emit(data)
-            elif data[0] == Q_LIST["조건검색 요청 결과"]:
+            elif data[0] == RESPONSE_DICT["조건검색 요청 결과"]:
                 self.signal_table.emit(data)
             time.sleep(0.0001)
 

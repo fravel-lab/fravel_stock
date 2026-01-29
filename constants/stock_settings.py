@@ -19,8 +19,11 @@ CANDLE_PATH = os.path.join(DB_DIR, 'candle.db')  # 캔들 정보
 CODE_TO_STOCK_PATH = os.path.join(DATA_DIR, 'code_to_stock.pickle')  # 종목 코드를 주식 이름으로 변환
 STOCK_TO_CODE_PATH = os.path.join(DATA_DIR, 'stock_to_code.pickle')  # 주식 이름을 종목 코드로 변환
 
+API_URL = "https://api.kiwoom.com"
+MOCK_API_URL = "https://mockapi.kiwoom.com"
+
 # TODO 2024-11-21 
-Q_LIST = {
+RESPONSE_DICT = {
     "로그텍스트": 0,
     "로그텍스트2": 1,
     "로그텍스트3": 2,
@@ -47,6 +50,12 @@ Q_LIST = {
     "조건검색 요청 결과": 24,
 }
 
+EVENT_DICT = {
+    "토큰 요청" : 'reload_token',
+    "계좌 정보 요청" : 'account_info',
+    "마켓 데이터 요청" : 'market_data'
+}
+
 API_ID = {
     "계좌정보": "ka01690",
     "종목정보": "ka10099",
@@ -59,8 +68,6 @@ TR_DICT = {
     "조건검색 실시간 해제": "CNSRCLR",
     "조건검색 요청 일반": "CNSRREQ",
 }
-
-
 
 # TODO 2024-11-21 생략할 계좌 번호
 IGNORE_ACCOUNT_LIST = ["3389376621"]

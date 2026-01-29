@@ -3,9 +3,10 @@ import websockets
 import json
 
 # socket 정보
-# SOCKET_URL = 'wss://mockapi.kiwoom.com:10000/api/dostk/websocket'  # 모의투자 접속 URL
-SOCKET_URL = 'wss://api.kiwoom.com:10000/api/dostk/websocket'  # 접속 URL
-ACCESS_TOKEN = '80Dzf0bRc_UraOG03nBfQloGMOpKIj9KE6euMqYt1Xq56PnkZWahnNn1VF_Q5ES6NiQSK9NYGn6XW7qNMD1eGg'  # 고객 Access Token
+SOCKET_URL = 'wss://mockapi.kiwoom.com:10000/api/dostk/websocket'  # 모의투자 접속 URL
+# SOCKET_URL = 'wss://api.kiwoom.com:10000/api/dostk/websocket'  # 접속 URL
+# ACCESS_TOKEN = '80Dzf0bRc_UraOG03nBfQloGMOpKIj9KE6euMqYt1Xq56PnkZWahnNn1VF_Q5ES6NiQSK9NYGn6XW7qNMD1eGg'  # 고객 Access Token
+ACCESS_TOKEN = 'xM7sYAGvqCzDqDMndrpL1M3GqksB8Qvw7PkvbtSQlQXxWuEFrEra7L99nzBe6veKUwaDgPfXNgXFjeYud_SRfg'  # 고객 Access Token
 
 class WebSocketClient:
 	def __init__(self, uri):

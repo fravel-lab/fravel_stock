@@ -10,7 +10,7 @@ import requests
 import json
 from time import sleep
 from pprint import pprint
-from constants.stock_settings import API_ID, CANDLE_PATH, CODE_TO_STOCK_PATH, Q_LIST, STOCK_PATH, STOCK_TO_CODE_PATH, TR_DICT
+from constants.stock_settings import API_ID, API_URL, CANDLE_PATH, CODE_TO_STOCK_PATH, MOCK_API_URL, RESPONSE_DICT, STOCK_PATH, STOCK_TO_CODE_PATH, TR_DICT
 import pandas as pd
 from queue import Queue as ThreadQueue
 
@@ -19,8 +19,6 @@ from core.WebSocketWorker import WebSocketWorker
 
 app = QtWidgets.QApplication(sys.argv)
 
-API_URL = "https://api.kiwoom.com"
-MOCK_API_URL = "https://mockapi.kiwoom.com"
 
 class KiwoomWorker:
     today = QDate.currentDate().toString("yy_MM_dd")
@@ -59,7 +57,6 @@ class KiwoomWorker:
         
     def get_token(self, api_url, api_key, api_secret):
         token_url = f"{api_url}/oauth2/token"
-        
         print(f"token_url: {token_url}")
         
         headers = {
@@ -72,14 +69,14 @@ class KiwoomWorker:
         }
         response = requests.post(token_url, headers=headers, json=params)
         
-        print('Code:', response.status_code)
-        print('Header:', json.dumps({key: response.headers.get(key) for key in ['next-key', 'cont-yn', 'api-id']}, indent=4, ensure_ascii=False))
+        # print('Code:', response.status_code)
+        # print('Header:', json.dumps({key: response.headers.get(key) for key in ['next-key', 'cont-yn', 'api-id']}, indent=4, ensure_ascii=False))
         
         return_code = response.json()['return_code']
         return_msg = response.json()['return_msg']
         
         if (return_code != 0):
-            self.windowQ.put([Q_LIST["로그텍스트"], f"토큰 요청 실패 - {return_msg}"])
+            self.windowQ.put([RESPONSE_DICT["로그텍스트"], f"토큰 요청 실패 - {return_msg}"])
             return
         
         return response.json()['token']
@@ -98,9 +95,13 @@ class KiwoomWorker:
     def get_account_info(self):
         # TODO 2026-01-23 계좌 정보 조회
         if self.settings.value("api_token", "") != "":
-            account_url = f"{API_URL}/api/dostk/acnt"
+            if self.settings.value("trading_type", "mock") == "mock":
+                account_url = f"{MOCK_API_URL}/api/dostk/acnt"
+            else:
+                account_url = f"{API_URL}/api/dostk/acnt"
             today = QDate.currentDate().toString("yyyyMMdd")    
             headers = self.create_header(account_url, API_ID["계좌정보"])
+
             params = {
                 'qry_dt': today, # 조회일자 
             }
@@ -109,10 +110,10 @@ class KiwoomWorker:
             # print('Code:', response.status_code)
             # print('Header:', json.dumps({key: response.headers.get(key) for key in ['next-key', 'cont-yn', 'api-id']}, indent=4, ensure_ascii=False))
             # print('Body:', json.dumps(response.json(), indent=4, ensure_ascii=False))  # JSON 응답을 파싱하여 출력
-            self.windowQ.put([Q_LIST["계좌정보"], response.json()])
-            # self.windowQ.put([Q_LIST["로그텍스트"], f"계좌정보 수신 완료"])
+            self.windowQ.put([RESPONSE_DICT["계좌정보"], response.json()])
+            # self.windowQ.put([RESPONSE_DICT["로그텍스트"], f"계좌정보 수신 완료"])
         else:
-            self.windowQ.put([Q_LIST["로그텍스트"], "API 토큰이 없습니다."])
+            self.windowQ.put([RESPONSE_DICT["로그텍스트"], "API 토큰이 없습니다."])
     
     def download_market_data(self):
         # TODO 2026-01-23 코스피, 코스닥 종목 데이터 다운로드
@@ -135,18 +136,18 @@ class KiwoomWorker:
             
             if market_type == '0':
                 print(f"코스피 종목정보 수신 완료 - {len(stock_list)}건")
-                self.windowQ.put([Q_LIST["로그텍스트2"], f"코스피 종목정보 수신 완료 - {len(stock_list)}건"])
+                self.windowQ.put([RESPONSE_DICT["로그텍스트2"], f"코스피 종목정보 수신 완료 - {len(stock_list)}건"])
             elif market_type == '10':
                 print(f"코스닥 종목정보 수신 완료 - {len(stock_list)}건")
-                self.windowQ.put([Q_LIST["로그텍스트2"], f"코스닥 종목정보 수신 완료 - {len(stock_list)}건"])
+                self.windowQ.put([RESPONSE_DICT["로그텍스트2"], f"코스닥 종목정보 수신 완료 - {len(stock_list)}건"])
             
             # TODO 2026-01-23 Loop를 돌면서 실행하므로 코스피인 경우에만 실행하도록 수정(코스닥도 체크하면 계송 중복으로 생성됨)
             if isfile(STOCK_PATH) and market_type == '0':
                 print("디비 파일 재생성 :"+ market_type)
-                self.windowQ.put([Q_LIST['로그텍스트2'], "디비 파일 재생성"])
+                self.windowQ.put([RESPONSE_DICT['로그텍스트2'], "디비 파일 재생성"])
                 # TODO 2024-11-26 기존 파일은 삭제하지 않고 stock(Ymd).db 파일로 변경
                 if isfile(STOCK_PATH.replace(".db", f"({self.today}).db")):
-                    self.windowQ.put([Q_LIST['로그텍스트2'], "디비 파일 재생성 - 기존 파일 있음"])
+                    self.windowQ.put([RESPONSE_DICT['로그텍스트2'], "디비 파일 재생성 - 기존 파일 있음"])
                     # TODO 2024-11-26 YMD 파일명이 있을 경우 ymd_1, ymd_2 순으로 숫자를 올리면서 rename한다.
                     tmp_i = 1
                     while isfile(STOCK_PATH.replace(".db", f"({self.today}_{tmp_i}).db")):
@@ -154,7 +155,7 @@ class KiwoomWorker:
                     rename(STOCK_PATH, STOCK_PATH.replace(".db", f"({self.today}_{tmp_i}).db"))
                 else:
                     # TODO 2024-11-26 YMD 파일명이 없을 경우 YMD.db로 생성
-                    self.windowQ.put([Q_LIST['로그텍스트2'], "디비 파일 재생성 - 기존 파일 없음"])
+                    self.windowQ.put([RESPONSE_DICT['로그텍스트2'], "디비 파일 재생성 - 기존 파일 없음"])
                     rename(STOCK_PATH, STOCK_PATH.replace(".db", f"({self.today}).db"))
                 
                 # TODO 2026-01-23 pickle데이터 삭제
@@ -194,15 +195,15 @@ class KiwoomWorker:
                 with open(STOCK_TO_CODE_PATH, 'wb') as f:
                     pickle.dump(self.stock_to_code, f)
                 
-                self.windowQ.put([Q_LIST["로그텍스트2"], "pickle데이터 저장 완료"])
+                self.windowQ.put([RESPONSE_DICT["로그텍스트2"], "pickle데이터 저장 완료"])
         
-        self.windowQ.put([Q_LIST["로그텍스트2"], "종목정보 수신 완료"])
+        self.windowQ.put([RESPONSE_DICT["로그텍스트2"], "종목정보 수신 완료"])
         
     def download_candle(self, candle_ymd):
         if isfile(STOCK_PATH):
             conn_stock = sqlite3.connect(STOCK_PATH)
         else:
-            self.windowQ.put([Q_LIST["로그텍스트2"], "stock.db 파일이 없습니다."])
+            self.windowQ.put([RESPONSE_DICT["로그텍스트2"], "stock.db 파일이 없습니다."])
             return
         
         cur_stock = conn_stock.cursor()
@@ -216,7 +217,7 @@ class KiwoomWorker:
                 continue
             stock_code = stock_code[0] # 종목 코드명
             print(f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작 - {index + 1} / {len(stock_codes)}")
-            self.windowQ.put([Q_LIST["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작 - {index + 1} / {len(stock_codes)}"])
+            self.windowQ.put([RESPONSE_DICT["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 다운로드 시작 - {index + 1} / {len(stock_codes)}"])
             con_candle = sqlite3.connect(CANDLE_PATH)
             cur_candle = con_candle.cursor()  # DB 연결
         
@@ -244,7 +245,7 @@ class KiwoomWorker:
             print(f"첫 번째 응답 - {len(response.json()['stk_dt_pole_chart_qry'])}건")
             
             if (return_code != 0):
-                self.windowQ.put([Q_LIST["로그텍스트2"], f"일별주가요청 실패 - {return_code} {return_msg}"])
+                self.windowQ.put([RESPONSE_DICT["로그텍스트2"], f"일별주가요청 실패 - {return_code} {return_msg}"])
                 
             # TODO 2026-01-24 header 응답의 cont-yn이 Y이고 next-key가 있을 경우 연속조회 요청
             stock_data = []
@@ -296,7 +297,7 @@ class KiwoomWorker:
                 cur_candle.execute("INSERT INTO candle VALUES (?,?,?,?,?,?,?,?,?)", (stock_code, row['dt'], row['open_pric'], row['high_pric'], row['low_pric'], row['cur_prc'], row['trde_qty'], row['pred_pre'], row['trde_prica']))
             
             print(f"{self.code_to_stock[stock_code]} 일봉 저장 완료")
-            self.windowQ.put([Q_LIST["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 저장 완료"])
+            self.windowQ.put([RESPONSE_DICT["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 저장 완료"])
             con_candle.commit()
 
             cur_candle.close()
@@ -308,7 +309,7 @@ class KiwoomWorker:
         conn_stock.close()
             
     def start_websocket(self, api_token):
-        self.windowQ.put([Q_LIST["로그텍스트"], "WebSocket 시작"])
+        self.windowQ.put([RESPONSE_DICT["로그텍스트"], "WebSocket 시작"])
         self.ws_sendQ = ThreadQueue()
         self.ws_recvQ = ThreadQueue()
         
@@ -331,14 +332,14 @@ class KiwoomWorker:
                     data = self.ws_recvQ.get()
                     trnm = data.get("trnm")
                     
-                    # self.windowQ.put([Q_LIST["로그텍스트"], f"WS Receive - {trnm} : {data}"])
+                    # self.windowQ.put([RESPONSE_DICT["로그텍스트"], f"WS Receive - {trnm} : {data}"])
 
                     if trnm == TR_DICT["조건검색목록"]: # CNSRLST
-                        self.windowQ.put([Q_LIST["조건검색목록 결과"], data])
+                        self.windowQ.put([RESPONSE_DICT["조건검색목록 결과"], data])
                     elif trnm == TR_DICT["조건검색 요청 실시간"]: # CNSRREQ
-                        self.windowQ.put([Q_LIST["조건검색 요청 결과"], data])
+                        self.windowQ.put([RESPONSE_DICT["조건검색 요청 결과"], data])
                     else:
-                        self.windowQ.put([Q_LIST["로그텍스트"], f"미처리 WS 데이터: {data}"])
+                        self.windowQ.put([RESPONSE_DICT["로그텍스트"], f"미처리 WS 데이터: {data}"])
                     
             if not self.eventQ.empty():
                 event = self.eventQ.get()
@@ -353,10 +354,10 @@ class KiwoomWorker:
                     api_token = self.get_token(API_URL, api_key, api_secret)
                     mock_api_token = self.get_token(MOCK_API_URL, mock_api_key, mock_api_secret)
                     
-                    self.windowQ.put([Q_LIST["로그텍스트"], f"실전 API 토큰 수신 완료 - {api_token}"])
-                    self.windowQ.put([Q_LIST["로그텍스트"], f"모의투자 API 토큰 수신 완료 - {mock_api_token}"])
-                    self.windowQ.put([Q_LIST["API_TOKEN"], api_token])
-                    self.windowQ.put([Q_LIST["MOCK_API_TOKEN"], mock_api_token])
+                    self.windowQ.put([RESPONSE_DICT["로그텍스트"], f"실전 API 토큰 수신 완료 - {api_token}"])
+                    self.windowQ.put([RESPONSE_DICT["로그텍스트"], f"모의투자 API 토큰 수신 완료 - {mock_api_token}"])
+                    self.windowQ.put([RESPONSE_DICT["API_TOKEN"], api_token])
+                    self.windowQ.put([RESPONSE_DICT["MOCK_API_TOKEN"], mock_api_token])
                     
                     # TODO 2026-01-24 텔레그램 메시지 발송 주석 처리(임시)
                     # self.teleQ.put(f"API_TOKEN - {api_token}")
@@ -378,11 +379,15 @@ class KiwoomWorker:
                     self.download_candle(self.candle_ymd)
                     
                 elif event[0] == "start_websocket": # TODO 2026-01-27 웹소켓 스레드 시작
-                    print("start_websocket")
-                    api_token = self.settings.value("api_token", "")
+                    print("웹소켓 스레드 시작")
+                    
+                    if self.settings.value("trading_type", "mock") == "mock":
+                        api_token = self.settings.value("mock_api_token", "")
+                    else:
+                        api_token = self.settings.value("api_token", "")
                     
                     if not api_token:
-                        self.windowQ.put([Q_LIST["로그텍스트"], "WebSocket 시작 실패: API 토큰 없음"])
+                        self.windowQ.put([RESPONSE_DICT["로그텍스트"], "WebSocket 시작 실패: API 토큰 없음"])
                         return
                     
                     self.start_websocket(api_token)
@@ -391,7 +396,7 @@ class KiwoomWorker:
                     if self.ws_worker:
                         self.ws_worker.stop()
                         self.ws_worker = None
-                        self.windowQ.put([Q_LIST["로그텍스트"], "WebSocket 스레드 종료"])
+                        self.windowQ.put([RESPONSE_DICT["로그텍스트"], "WebSocket 스레드 종료"])
                         
                 elif event[0] == "condition_load": # TODO 2026-01-27 조건식 로드
                     if not self.ws_worker or not self.ws_worker.is_alive():
