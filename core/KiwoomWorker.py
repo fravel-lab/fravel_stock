@@ -294,7 +294,8 @@ class KiwoomWorker:
             
             # TODO 2026-01-24 candle.db 에 저장
             for index, row in df.iterrows():
-                cur_candle.execute("INSERT INTO candle VALUES (?,?,?,?,?,?,?,?,?)", (stock_code, row['dt'], row['open_pric'], row['high_pric'], row['low_pric'], row['cur_prc'], row['trde_qty'], row['pred_pre'], row['trde_prica']))
+                # 종목, 날짜, 시가, 고가, 저가, 종가, 전일대비, 거래량, 거래대금
+                cur_candle.execute("INSERT INTO candle VALUES (?,?,?,?,?,?,?,?,?)", (stock_code, row['dt'], row['open_pric'], row['high_pric'], row['low_pric'], row['cur_prc'], row['pred_pre'], row['trde_qty'], row['trde_prica']))
             
             print(f"{self.code_to_stock[stock_code]} 일봉 저장 완료")
             self.windowQ.put([RESPONSE_DICT["로그텍스트2"], f"{self.code_to_stock[stock_code]} 일봉 저장 완료"])
